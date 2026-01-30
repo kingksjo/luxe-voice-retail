@@ -1,0 +1,7 @@
+{
+  "name": "Luxe Voice Retail",
+  "description": "A premium, voice-driven fashion retail experience powered by Gemini Live.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
