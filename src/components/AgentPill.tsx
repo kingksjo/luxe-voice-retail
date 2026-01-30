@@ -44,8 +44,10 @@ export const AgentPill: React.FC<AgentPillProps> = ({ state, onClick, volume = 0
                         state === 'muted' ? 'bg-red-50 text-red-500' :
                             'bg-stone-100 text-secondary'}
                 `}>
-                    {state === 'idle' || state === 'muted' ? (
-                        <span className="material-symbols-outlined">{state === 'muted' ? 'mic_off' : 'graphic_eq'}</span>
+                    {state === 'idle' || state === 'muted' || state === 'error' ? (
+                        <span className="material-symbols-outlined">
+                            {state === 'muted' ? 'mic_off' : state === 'error' ? 'wifi_off' : 'graphic_eq'}
+                        </span>
                     ) : (
                         <div className="flex items-center gap-[3px] h-4 items-center">
                             {/* Dynamic Bars based on volume */}
@@ -64,6 +66,7 @@ export const AgentPill: React.FC<AgentPillProps> = ({ state, onClick, volume = 0
                         {state === 'speaking' && "Curating..."}
                         {state === 'processing' && "Thinking..."}
                         {state === 'muted' && "Muted"}
+                        {state === 'error' && "Connection Lost"}
                     </span>
                     <span className={`text-[10px] font-medium uppercase tracking-wider leading-tight ${state !== 'idle' ? 'text-stone-400' : 'text-secondary'}`}>
                         AI Stylist

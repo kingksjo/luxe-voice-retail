@@ -15,7 +15,7 @@ export interface OutfitItem extends Product {
     addedAt: number; // Timestamp for animation sorting
 }
 
-export type AgentState = 'idle' | 'listening' | 'speaking' | 'processing' | 'muted';
+export type AgentState = 'idle' | 'listening' | 'speaking' | 'processing' | 'muted' | 'error';
 
 export interface ToolCallArgs {
     addOutfitItem?: { productId: string };

@@ -28,6 +28,16 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
         scrollEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }, [outfit]);
 
+    // Auto-reconnect on error
+    useEffect(() => {
+        if (agentState === 'error') {
+            const timer = setTimeout(() => {
+                serviceRef.current?.connect().catch(console.error);
+            }, 3000);
+            return () => clearTimeout(timer);
+        }
+    }, [agentState]);
+
     // Initialize Service
     useEffect(() => {
         const handleToolCall = async (name: string, args: any) => {

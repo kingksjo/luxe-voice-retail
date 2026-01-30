@@ -2,178 +2,152 @@ import { Product } from './types';
 
 export const SYSTEM_INSTRUCTION = `You are an autonomous AI fashion stylist for a luxury brand called LUXE. 
 Your goal is to curate a coherent, stylish outfit for the user based on their voice intent.
-Use the style_tags on products to match the user's vibe (e.g., "minimal", "business", "romantic").
-You have direct control over the UI via function calling. 
-Do not explicitly mention that you are "using a tool" or "updating the screen". Just speak naturally about the fashion choices while simultaneously executing the updates.
-When the user speaks, interpret their vibe (e.g., "minimal", "weekend in Paris", "business casual") and immediately start building or modifying the outfit.
-Always prioritize quality, material, and color coordination.
-If the user asks for something vague, make a decision and justify it with fashion expertise.
-If the user's request is impossible (e.g., "show me a spacesuit"), politely steer them back to luxury fashion.
-Keep your spoken responses concise, elegant, and warm. Avoid robotic phrasing.
-The catalog is small. If a specific item isn't available, suggest the closest alternative from the available categories.
-You MUST use the provided tools to update the visual outfit list. 
-- addOutfitItem: Adds an item to the list.
-- removeOutfitItem: Removes an item by category.
-- replaceOutfitItem: Swaps an item.
-- clearOutfit: Resets the list.
+
+### CORE CONTEXT
+The user will ask for outfits based on:
+1. **Occasion**: "Workplace", "Vacation/Holiday", "Back to School", "Party", "Gym/Fitness", "Going Out" (restaurants, picnics).
+2. **Vibe/Style**: "Masculine", "Feminine", or "Alternative".
+
+### REASONING RULES
+- **Analyze Implicit Signals**: 
+    - "I have a board meeting" -> Workplace + Professional. 
+    - "I'm hitting the club" -> Party + Edgy/Alt or Glam.
+    - "Heading to class" -> Back to School + Casual/Smart.
+- **Respect Gender/Style**: 
+    - If the user uses masculine terms or asks for "menswear", prioritize 'masculine' tagged items. 
+    - If feminine, 'feminine'. 
+    - "Alt" or "Edge" should pull from 'alternative' tags.
+- **Luxury Constraint**: Even for "Gym" or "School", the items must be styled as high-fashion luxury (e.g., Cashmere hoodie, not basic gym gear).
+- **Fallback**: If unsure of style, default to "Neutral/Minimal" which works for everyone.
+
+### CATALOG USAGE
+- **You must ONLY recommend items from the provided catalog.**
+- Use 'style_tags' to match the user's request.
+- If a specific item isn't available, suggest the best luxury alternative from the same category.
+- **Do not hallucinate products.**
+
+### EXECUTION
+- Speak naturally about styling choices (e.g., "This silk blouse creates a soft, professional silhouette...").
+- **SIMULTANEOUSLY** call functions to update the UI. Do not wait to finish speaking or ask for permission.
+- **Tools**: addOutfitItem, removeOutfitItem, replaceOutfitItem, clearOutfit.
 `;
 
 export const PRODUCT_CATALOG: Product[] = [
-    // Tops
+    // --- TOPS ---
     {
-        id: 't1',
-        category: 'top',
-        name: 'Silk Bow Blouse',
-        color: 'Ivory',
-        material: '100% Silk',
-        style_tags: ['romantic', 'vintage', 'elegant', 'soft'],
-        price: 890,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCXpT19b5F9_8eeBB5kG1PZN_1hkwWfrQI_Qq0syQE5GVBy_DMm2QLHAsDtP_ymHon_9csy4sAICD84GHRsN1KgLSNabhAFCblvUnsGnQC6WbkX4xTxk1nPPuTxWf3eRRsfjKuqlIRo2q43PGfHlq9KnywhynrvnydvVxKiKne8Kvc3bqYk2Cp3e50cvF8PpYkmc_AuFL4SZifSzTUIr6VDHdKJSwJjlvrYApWtHHN18BcC6p7F4-ElPvH1KV42NHSxeYfhZWuRgeE'
+        id: 't1', category: 'top', name: 'Silk Bow Blouse', color: 'Ivory', material: '100% Silk', price: 890,
+        style_tags: ['feminine', 'workplace', 'romantic', 'elegant'],
+        image_url: 'https://images.unsplash.com/photo-1604176354204-9268737828c4?q=80&w=2080&auto=format&fit=crop'
     },
     {
-        id: 't2',
-        category: 'top',
-        name: 'Cashmere Wrap Coat',
-        color: 'Camel',
-        material: 'Cashmere',
-        style_tags: ['classic', 'luxury', 'winter', 'business'],
-        price: 2450,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCDK3lTYMzcn8RAr9NWFW-xY6ecdsnAbjMC_eWIlNNHxvF0YYiIe8ST2WdQi_kB_VN9X_pnM7v-Tmh7um3g2cfkoO4-113ftfG2WENdaS1PKTdhWm3xpRptW_3b_-IHElSBXMdLTBuBm7byOU_X7iB1UpknTbbWk21hsexgdtSbCRvSq01ScsHc9BsKs5Qypuc0GSm_hqISvYXkvW1wal0vinq1J_6M4GwtwgLfr8tH7wmTEuGrNx5HtebDZze4JTSlp4hOJXNwvWU'
+        id: 't2', category: 'top', name: 'Oversized Structured Blazer', color: 'Charcoal', material: 'Wool Blend', price: 1250,
+        style_tags: ['masculine', 'workplace', 'alternative', 'going out', 'structured'],
+        image_url: 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?q=80&w=1936&auto=format&fit=crop'
     },
     {
-        id: 't3',
-        category: 'top',
-        name: 'Wool Blend Blazer',
-        color: 'Taupe check',
-        material: 'Wool Blend',
-        style_tags: ['business', 'smart casual', 'masculine', 'structured'],
-        price: 1250,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAHvd-_H8CSsHa-XH8CKrng1ZwglXBnsWr0EOdZgQcc24piXeb8GLvqNg6eeaWSc6B5JAGWccMPlTt1d-rTUPtm5vkgxjg7tk5syB46o38vjZFrYP6TukOTHL8mdyQq0-lvE6OLUuL8yLO-CIFkYZdVS69MivOyn5LnoveA_n2sH0M5hDTu1M38_EAZkNJ3FkhDtAVM_DKeNYs9rJQzHDXxaOsmxniehCJs0NRRiY24v3YFneQc5K4nPKjZ_Pz7xnrJ-pg4YLLpUP0'
-    },
-    {
-        id: 't4',
-        category: 'top',
-        name: 'Crisp Poplin Shirt',
-        color: 'White',
-        material: 'Cotton Poplin',
-        style_tags: ['minimal', 'classic', 'versatile', 'layering'],
-        price: 450,
-        image_url: 'https://images.unsplash.com/photo-1598532163257-52b6b5274d71?q=80&w=1952&auto=format&fit=crop'
-    },
-    {
-        id: 't5',
-        category: 'top',
-        name: 'Oversized Knit Sweater',
-        color: 'Charcoal',
-        material: 'Merino Wool',
-        style_tags: ['cozy', 'relaxed', 'weekend', 'grunge'],
-        price: 680,
+        id: 't3', category: 'top', name: 'Luxe Cashmere Hoodie', color: 'Oatmeal', material: 'Pure Cashmere', price: 950,
+        style_tags: ['neutral', 'gym/fitness', 'vacation', 'back to school', 'relaxed'],
         image_url: 'https://images.unsplash.com/photo-1576566588028-4147f3842f27?q=80&w=1964&auto=format&fit=crop'
     },
+    {
+        id: 't4', category: 'top', name: 'Sheer Mesh Turtleneck', color: 'Midnight Black', material: 'Technical Mesh', price: 320,
+        style_tags: ['alternative', 'party', 'going out', 'edgy'],
+        image_url: 'https://images.unsplash.com/photo-1620799140408-ed5341cd2431?q=80&w=2072&auto=format&fit=crop'
+    },
+    {
+        id: 't5', category: 'top', name: 'Crisp Linen Resort Shirt', color: 'White', material: 'Italian Linen', price: 450,
+        style_tags: ['masculine', 'vacation', 'going out', 'breathable'],
+        image_url: 'https://images.unsplash.com/photo-1596755094514-f87e34085b2c?q=80&w=1888&auto=format&fit=crop'
+    },
+    {
+        id: 't6', category: 'top', name: 'Sequined Slip Top', color: 'Champagne', material: 'Satin & Sequin', price: 580,
+        style_tags: ['feminine', 'party', 'going out', 'glam'],
+        image_url: 'https://images.unsplash.com/photo-1618244972963-dbee1a7edc95?q=80&w=1974&auto=format&fit=crop'
+    },
+    {
+        id: 't7', category: 'top', name: 'Vintage Varsity Jacket', color: 'Navy/Cream', material: 'Wool & Leather', price: 1800,
+        style_tags: ['masculine', 'back to school', 'alternative', 'casual'],
+        image_url: 'https://images.unsplash.com/photo-1559551409-dadc959f76b8?q=80&w=2070&auto=format&fit=crop'
+    },
 
-    // Bottoms
+    // --- BOTTOMS ---
     {
-        id: 'b1',
-        category: 'bottom',
-        name: 'High-Waist Trousers',
-        color: 'Black',
-        material: 'Wool',
-        style_tags: ['business', 'classic', 'formal', 'sleek'],
-        price: 320,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuAvOT_DHdVUED7dEt9CGuI4Q1AJdtiA7f3xX0MeBpjob0D1htfgfbuO3L-jbWMmt-clF2VCG7YYW1DTijKsJFzjA7e6gyyAfkvCLpzipD0Ff6BUo_jkutC-QqbC80PH7eKvxR_7NHIZ2knaAce1kUKpsdfUwA6u0V67rkHMi6rUFQb0d_XG-4PxCE-o8Uo6ZuzT-auOsnMSifn9UA5f654OBvHax2dPYtwXyvaWfPlEJml88PznAsfaw76y0NvgOJLyIiJKoWuZLEc'
+        id: 'b1', category: 'bottom', name: 'Tailored Wide-Leg Trousers', color: 'Black', material: 'Wool Gabardine', price: 790,
+        style_tags: ['masculine', 'workplace', 'going out', 'formal'],
+        image_url: 'https://images.unsplash.com/photo-1594633312681-425c7b97ccd1?q=80&w=1887&auto=format&fit=crop'
     },
     {
-        id: 'b2',
-        category: 'bottom',
-        name: 'Silk Pleated Trousers',
-        color: 'Olive',
-        material: 'Silk Blend',
-        style_tags: ['romantic', 'artsy', 'fluid', 'summer'],
-        price: 980,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuDN4xH2npj8kcjqfJnXB4IG77YmcOtFdNQBiT3BkSMxFJHWoWaxelCkxfGDW-ztHIwQxKbUzcx86F5cDeAzxi1JUaEquDIFEgS9kI7Q-js0LByRU-ZQhMXQYq2hVGuCvgOtc27TRtcni11UZlDMLvxwLdkAGEKGdW7t2DC7pcDLxoxyOzZjqG451x10iCFYeFxAOVU-ub9bcCyBzi34o9j0nahII4jKhlSKbWL35mRMj9tc52bn32jnJEiple4sTQgoiccsQnYGxgg'
+        id: 'b2', category: 'bottom', name: 'Pleated Midi Skirt', color: 'Dove Grey', material: 'Technical Pleat', price: 650,
+        style_tags: ['feminine', 'workplace', 'back to school', 'minimal'],
+        image_url: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?q=80&w=1964&auto=format&fit=crop'
     },
     {
-        id: 'b3',
-        category: 'bottom',
-        name: 'Straight Leg Denim',
-        color: 'Mid Wash',
-        material: 'Organic Denim',
-        style_tags: ['casual', 'everyday', 'vintage', 'weekend'],
-        price: 280,
+        id: 'b3', category: 'bottom', name: 'Tech-Fleece Joggers', color: 'Slate', material: 'Performance Cotton', price: 380,
+        style_tags: ['masculine', 'gym/fitness', 'vacation', 'comfort'],
+        image_url: 'https://images.unsplash.com/photo-1552902865-b72c031ac5ea?q=80&w=1888&auto=format&fit=crop'
+    },
+    {
+        id: 'b4', category: 'bottom', name: 'Distressed Designer Denim', color: 'Washed Black', material: 'Japanese Denim', price: 520,
+        style_tags: ['alternative', 'back to school', 'going out', 'grunge'],
         image_url: 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?q=80&w=1887&auto=format&fit=crop'
     },
     {
-        id: 'b4',
-        category: 'bottom',
-        name: 'Midi Satin Skirt',
-        color: 'Champagne',
-        material: 'Satin',
-        style_tags: ['elegant', 'date night', 'minimal', 'feminine'],
-        price: 350,
-        image_url: 'https://images.unsplash.com/photo-1583496661160-fb5886a0aaaa?q=80&w=1964&auto=format&fit=crop'
+        id: 'b5', category: 'bottom', name: 'High-Waist Bikini/Shorts', color: 'Emerald', material: 'Recycled Nylon', price: 280,
+        style_tags: ['feminine', 'vacation', 'gym/fitness', 'swim'],
+        image_url: 'https://images.unsplash.com/photo-1605763240004-741b7f72b529?q=80&w=1887&auto=format&fit=crop'
+    },
+    {
+        id: 'b6', category: 'bottom', name: 'Silk Palazzo Pants', color: 'Coral', material: 'Raw Silk', price: 890,
+        style_tags: ['feminine', 'vacation', 'party', 'bold'],
+        image_url: 'https://images.unsplash.com/photo-1509551388413-e18d0ac5d495?q=80&w=1956&auto=format&fit=crop'
     },
 
-    // Shoes
+    // --- SHOES ---
     {
-        id: 's1',
-        category: 'shoes',
-        name: 'Penny Loafers',
-        color: 'Burgundy',
-        material: 'Calf Leather',
-        style_tags: ['preppy', 'classic', 'business', 'casual'],
-        price: 295,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuBEBDtMxeMEHeVPT2HiByCaa_n-H9c0n-K8VF78V1r-R1YR6EiBQaglP4EAADHJss0LO7IJGrqFZtwpOwQF0Sreb78Fd8fFDiO52MPi6JU_kVP7O15FnIDV7wBZJyMdT2wt4W3juG2MawOqQ-P7BkpRUdlcighh536TJh_nHCmFA1ivqGz-66C2x0Ce60PreakLWyhGJzwlVlBVchZnQrQYqeXLa089lGAkKwyzo9O1qmC711zcUuQiXZHvnk7QFg0AqsGHz96SY7o'
+        id: 's1', category: 'shoes', name: 'Classic Penny Loafers', color: 'Oxblood', material: 'Polished Leather', price: 650,
+        style_tags: ['masculine', 'workplace', 'back to school', 'preppy'],
+        image_url: 'https://images.unsplash.com/photo-1616406432452-07bc59365e44?q=80&w=2070&auto=format&fit=crop'
     },
     {
-        id: 's2',
-        category: 'shoes',
-        name: 'Ankle Boots',
-        color: 'Black',
-        material: 'Leather',
-        style_tags: ['edgy', 'winter', 'everyday', 'modern'],
-        price: 550,
+        id: 's2', category: 'shoes', name: 'Strappy Minimalist Heels', color: 'Silver', material: 'Metallic Leather', price: 720,
+        style_tags: ['feminine', 'party', 'going out', 'elegant'],
         image_url: 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?q=80&w=2080&auto=format&fit=crop'
     },
     {
-        id: 's3',
-        category: 'shoes',
-        name: 'Minimal Sneakers',
-        color: 'White/Ecru',
-        material: 'Leather',
-        style_tags: ['sporty', 'minimal', 'weekend', 'comfort'],
-        price: 420,
+        id: 's3', category: 'shoes', name: 'Chunky Combat Boots', color: 'Black', material: 'Vegan Leather', price: 890,
+        style_tags: ['alternative', 'back to school', 'going out', 'utilitarian'],
+        image_url: 'https://images.unsplash.com/photo-1608256246200-53e635b5b65f?q=80&w=1887&auto=format&fit=crop'
+    },
+    {
+        id: 's4', category: 'shoes', name: 'Performance Tech Runners', color: 'Neon/White', material: 'Mesh & Rubber', price: 340,
+        style_tags: ['neutral', 'gym/fitness', 'weekend', 'sporty'],
         image_url: 'https://images.unsplash.com/photo-1560769629-975ec94e6a86?q=80&w=1964&auto=format&fit=crop'
     },
+    {
+        id: 's5', category: 'shoes', name: 'Leather Slides', color: 'Tan', material: 'Calfskin', price: 420,
+        style_tags: ['neutral', 'vacation', 'relaxed', 'summer'],
+        image_url: 'https://images.unsplash.com/photo-1603487742131-4160d6986ba2?q=80&w=2070&auto=format&fit=crop'
+    },
 
-    // Accessories
+    // --- ACCESSORIES ---
     {
-        id: 'a1',
-        category: 'accessory',
-        name: 'Structured Leather Tote',
-        color: 'Cognac',
-        material: 'Full Grain Leather',
-        style_tags: ['business', 'practical', 'classic'],
-        price: 1890,
-        image_url: 'https://lh3.googleusercontent.com/aida-public/AB6AXuCcsWEjZScZSv2Xb2KWr82fjNDhdAPw9o0a5C696qIAXsc-9s--IBk0VJdCqB70eWGiTfp-WlRyubn4eWlAREyouejWK2RYUolPKAAfquvLgVZ4VSoMhNqlOQD1Bfclmhr_0uFq3VaJIV_cd1ryA-i1IcjDN_Ri8Pl2r3Jo4PwUMY5sLMGYaOCoNS5lfzgnaF1nvYRG0C9TRSw11G7kxdyZpp5vgNEwcDJ2R5htV4knartbJ7uKXjFT32_bMixd67kXxRvLcXxvzaw'
+        id: 'a1', category: 'accessory', name: 'Structured Leather Tote', color: 'Black', material: 'Saffiano Leather', price: 2100,
+        style_tags: ['neutral', 'workplace', 'school', 'essential'],
+        image_url: 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?q=80&w=1935&auto=format&fit=crop'
     },
     {
-        id: 'a2',
-        category: 'accessory',
-        name: 'Cashmere Scarf',
-        color: 'Oatmeal',
-        material: 'Cashmere',
-        style_tags: ['cozy', 'winter', 'layering', 'soft'],
-        price: 250,
-        image_url: 'https://images.unsplash.com/photo-1520903920243-00d872a2d1c9?q=80&w=1887&auto=format&fit=crop'
+        id: 'a2', category: 'accessory', name: 'Micro Mini Bag', color: 'Fuchsia', material: 'Patent Leather', price: 950,
+        style_tags: ['feminine', 'party', 'going out', 'statement'],
+        image_url: 'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?q=80&w=2071&auto=format&fit=crop'
     },
     {
-        id: 'a3',
-        category: 'accessory',
-        name: 'Gold Link Bracelet',
-        color: 'Gold',
-        material: '18k Gold Plated',
-        style_tags: ['glam', 'jewelry', 'detail'],
-        price: 320,
-        image_url: 'https://images.unsplash.com/photo-1573408301185-9146fe634ad0?q=80&w=2075&auto=format&fit=crop'
+        id: 'a3', category: 'accessory', name: 'Performance Duffle', color: 'Matte Black', material: 'Nylon', price: 450,
+        style_tags: ['masculine', 'gym/fitness', 'vacation', 'utilitarian'],
+        image_url: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?q=80&w=1887&auto=format&fit=crop'
+    },
+    {
+        id: 'a4', category: 'accessory', name: 'Oversized Shield Sunglasses', color: 'Tortoise', material: 'Acetate', price: 380,
+        style_tags: ['alternative', 'vacation', 'going out', 'bold'],
+        image_url: 'https://images.unsplash.com/photo-1511499767150-a48a237f0083?q=80&w=2080&auto=format&fit=crop'
     }
 ];

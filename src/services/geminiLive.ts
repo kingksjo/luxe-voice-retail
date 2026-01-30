@@ -67,13 +67,15 @@ export class GeminiLiveService {
     private sources = new Set<AudioBufferSourceNode>();
     private session: any = null;
     private onToolCall: (name: string, args: any) => Promise<any>;
-    private onStatusChange: (status: 'idle' | 'listening' | 'speaking' | 'muted') => void;
+    private onStatusChange: (status: 'idle' | 'listening' | 'speaking' | 'muted' | 'error') => void;
     private onVolumeChange: (volume: number) => void;
     private isMuted: boolean = false;
     private isConnected: boolean = false;
+    private isConnecting: boolean = false;
     private inputAnalyser: AnalyserNode | null = null;
     private outputAnalyser: AnalyserNode | null = null;
     private animationFrameId: number | null = null;
+    private audioStream: MediaStream | null = null;
 
     constructor(
         onToolCall: (name: string, args: any) => Promise<any>,
@@ -87,166 +89,201 @@ export class GeminiLiveService {
     }
 
     async connect() {
-        this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
-        this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
-        this.nextStartTime = 0;
+        if (this.isConnected || this.isConnecting) return;
+        this.isConnecting = true;
 
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        try {
+            // Clean up any existing audio resources before creating new ones
+            // This prevents "cannot connect to AudioNode belonging to different context" errors
+            if (this.inputAudioContext) {
+                try { await this.inputAudioContext.close(); } catch (e) { }
+            }
+            if (this.outputAudioContext) {
+                try { await this.outputAudioContext.close(); } catch (e) { }
+            }
+            this.inputAnalyser = null;
+            this.outputAnalyser = null;
 
-        const sessionPromise = this.ai.live.connect({
-            model: 'gemini-2.5-flash-native-audio-preview-12-2025',
-            callbacks: {
-                onopen: () => {
-                    this.isConnected = true;
-                    this.onStatusChange(this.isMuted ? 'muted' : 'listening');
-                    if (!this.inputAudioContext) return;
+            this.inputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 16000 });
+            this.outputAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ sampleRate: 24000 });
+            this.nextStartTime = 0;
+            this.sources.clear();
 
-                    const source = this.inputAudioContext.createMediaStreamSource(stream);
+            // Audio Constraints for Echo Cancellation are CRITICAL for interruption to work
+            const stream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    channelCount: 1,
+                    echoCancellation: true,
+                    autoGainControl: true,
+                    noiseSuppression: true,
+                }
+            });
+            this.audioStream = stream;
 
-                    // Setup Input Analyzer
-                    this.inputAnalyser = this.inputAudioContext.createAnalyser();
-                    this.inputAnalyser.fftSize = 256;
-                    source.connect(this.inputAnalyser);
+            const sessionPromise = this.ai.live.connect({
+                model: 'gemini-2.5-flash-native-audio-preview-12-2025',
+                callbacks: {
+                    onopen: () => {
+                        this.isConnected = true;
+                        this.isConnecting = false;
+                        this.onStatusChange(this.isMuted ? 'muted' : 'listening');
+                        if (!this.inputAudioContext) return;
 
-                    const scriptProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
+                        const source = this.inputAudioContext.createMediaStreamSource(stream);
 
-                    // Start monitoring volume
-                    this.monitorVolume();
+                        // Setup Input Analyzer
+                        this.inputAnalyser = this.inputAudioContext.createAnalyser();
+                        this.inputAnalyser.fftSize = 256;
+                        source.connect(this.inputAnalyser);
 
-                    scriptProcessor.onaudioprocess = (e) => {
-                        if (!this.inputAudioContext) return; // Guard against closed context
-                        if (this.isMuted) return; // Don't send audio when muted
-                        if (!this.isConnected) return; // Don't send if session is closed
-                        const inputData = e.inputBuffer.getChannelData(0);
+                        const scriptProcessor = this.inputAudioContext.createScriptProcessor(4096, 1, 1);
 
-                        // Convert to PCM 16-bit
-                        const l = inputData.length;
-                        const int16 = new Int16Array(l);
-                        for (let i = 0; i < l; i++) {
-                            int16[i] = inputData[i] * 32768;
+                        // Start monitoring volume
+                        this.monitorVolume();
+
+                        scriptProcessor.onaudioprocess = (e) => {
+                            if (!this.inputAudioContext) return; // Guard against closed context
+                            if (this.isMuted) return; // Don't send audio when muted
+                            if (!this.isConnected) return; // Don't send if session is closed
+                            const inputData = e.inputBuffer.getChannelData(0);
+
+                            // Convert to PCM 16-bit
+                            const l = inputData.length;
+                            const int16 = new Int16Array(l);
+                            for (let i = 0; i < l; i++) {
+                                int16[i] = inputData[i] * 32768;
+                            }
+
+                            const base64Data = encode(new Uint8Array(int16.buffer));
+
+                            sessionPromise.then(session => {
+                                session.sendRealtimeInput({
+                                    media: {
+                                        mimeType: 'audio/pcm;rate=16000',
+                                        data: base64Data
+                                    }
+                                });
+                            }).catch(e => {
+                                console.error("Failed to send audio", e);
+                            });
+                        };
+
+                        source.connect(scriptProcessor);
+                        scriptProcessor.connect(this.inputAudioContext.destination);
+                    },
+                    onmessage: async (msg: LiveServerMessage) => {
+                        console.log("[Agent] Message received:", msg.toolCall ? 'ToolCall' : msg.serverContent?.interrupted ? 'Interrupted' : msg.serverContent?.modelTurn ? 'Audio' : 'Other');
+                        // 1. Handle Interruption
+                        if (msg.serverContent?.interrupted) {
+                            this.onStatusChange(this.isMuted ? 'muted' : 'listening');
+                            for (const source of this.sources) {
+                                try { source.stop(); } catch (e) { /* ignore */ }
+                            }
+                            this.sources.clear();
+                            this.nextStartTime = 0;
+                            return;
                         }
 
-                        const base64Data = encode(new Uint8Array(int16.buffer));
+                        // 2. Handle Tool Calls
+                        if (msg.toolCall) {
+                            for (const fc of msg.toolCall.functionCalls) {
+                                console.log("Tool call received:", fc.name, fc.args);
+                                let result = "success";
+                                try {
+                                    await this.onToolCall(fc.name, fc.args);
+                                } catch (error) {
+                                    result = "error";
+                                    console.error(error);
+                                }
+                                sessionPromise.then(session => {
+                                    session.sendToolResponse({
+                                        functionResponses: [{
+                                            id: fc.id,
+                                            name: fc.name,
+                                            response: { result: { status: result } }
+                                        }]
+                                    });
+                                }).catch(e => {
+                                    console.error("Failed to send tool response:", e);
+                                });
+                            }
+                        }
 
-                        sessionPromise.then(session => {
-                            session.sendRealtimeInput({
-                                media: {
-                                    mimeType: 'audio/pcm;rate=16000',
-                                    data: base64Data
+                        // 3. Handle Audio Response
+                        const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+                        if (base64Audio && this.outputAudioContext) {
+                            this.onStatusChange('speaking');
+                            this.nextStartTime = Math.max(this.outputAudioContext.currentTime, this.nextStartTime);
+                            const audioBuffer = await decodeAudioData(
+                                decode(base64Audio),
+                                this.outputAudioContext,
+                                24000,
+                                1
+                            );
+                            const source = this.outputAudioContext.createBufferSource();
+                            source.buffer = audioBuffer;
+                            if (!this.outputAnalyser) {
+                                this.outputAnalyser = this.outputAudioContext.createAnalyser();
+                                this.outputAnalyser.fftSize = 256;
+                                this.outputAnalyser.connect(this.outputAudioContext.destination);
+                            }
+                            source.connect(this.outputAnalyser);
+
+                            source.addEventListener('ended', () => {
+                                this.sources.delete(source);
+                                if (this.sources.size === 0) {
+                                    this.onStatusChange(this.isMuted ? 'muted' : 'listening');
                                 }
                             });
-                        });
-                    };
 
-                    source.connect(scriptProcessor);
-                    scriptProcessor.connect(this.inputAudioContext.destination);
-                },
-                onmessage: async (msg: LiveServerMessage) => {
-                    // 1. Handle Interruption
-                    if (msg.serverContent?.interrupted) {
-                        this.onStatusChange('listening');
-                        // Stop all currently playing audio
-                        for (const source of this.sources) {
-                            try { source.stop(); } catch (e) { /* ignore */ }
+                            source.start(this.nextStartTime);
+                            this.sources.add(source);
+                            this.nextStartTime += audioBuffer.duration;
                         }
-                        this.sources.clear();
-                        this.nextStartTime = 0;
-                        return;
-                    }
-
-                    // 2. Handle Tool Calls
-                    if (msg.toolCall) {
-                        for (const fc of msg.toolCall.functionCalls) {
-                            console.log("Tool call received:", fc.name, fc.args);
-
-                            // Execute local logic
-                            let result = "success";
-                            try {
-                                await this.onToolCall(fc.name, fc.args);
-                            } catch (error) {
-                                result = "error";
-                                console.error(error);
-                            }
-
-                            // Send response back
-                            sessionPromise.then(session => {
-                                session.sendToolResponse({
-                                    functionResponses: [{
-                                        id: fc.id,
-                                        name: fc.name,
-                                        response: { result: { status: result } }
-                                    }]
-                                });
-                            });
+                    },
+                    onclose: (e) => {
+                        console.log("Session closed", e);
+                        this.isConnected = false;
+                        this.isConnecting = false;
+                        // If cleanly closed, idle. If error code, error.
+                        if (e.code === 1000) {
+                            this.onStatusChange('idle');
+                        } else {
+                            this.onStatusChange('error');
                         }
-                    }
-
-                    // 3. Handle Audio Response
-                    const base64Audio = msg.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
-                    if (base64Audio && this.outputAudioContext) {
-                        this.onStatusChange('speaking');
-
-                        // Sync start time
-                        this.nextStartTime = Math.max(this.outputAudioContext.currentTime, this.nextStartTime);
-
-                        const audioBuffer = await decodeAudioData(
-                            decode(base64Audio),
-                            this.outputAudioContext,
-                            24000,
-                            1
-                        );
-
-                        const source = this.outputAudioContext.createBufferSource();
-                        source.buffer = audioBuffer;
-
-                        // Setup Output Analyzer if needed (lazy init for output context)
-                        if (!this.outputAnalyser) {
-                            this.outputAnalyser = this.outputAudioContext.createAnalyser();
-                            this.outputAnalyser.fftSize = 256;
-                        }
-                        source.connect(this.outputAnalyser);
-                        this.outputAnalyser.connect(this.outputAudioContext.destination);
-                        // source.connect(this.outputAudioContext.destination); // Replaced by above chain
-
-                        source.addEventListener('ended', () => {
-                            this.sources.delete(source);
-                            if (this.sources.size === 0) {
-                                // Only go back to listening if not muted
-                                this.onStatusChange(this.isMuted ? 'muted' : 'listening');
-                            }
-                        });
-
-                        source.start(this.nextStartTime);
-                        this.sources.add(source);
-                        this.nextStartTime += audioBuffer.duration;
+                    },
+                    onerror: (e) => {
+                        console.error("Session error", e);
+                        this.isConnected = false;
+                        this.isConnecting = false;
+                        this.onStatusChange('error');
                     }
                 },
-                onclose: (e) => {
-                    console.log("Session closed", e);
-                    this.isConnected = false;
-                    this.onStatusChange('idle');
-                },
-                onerror: (e) => {
-                    console.error("Session error", e);
-                    this.isConnected = false;
-                    this.onStatusChange('idle');
+                config: {
+                    systemInstruction: SYSTEM_INSTRUCTION,
+                    responseModalities: [Modality.AUDIO], // Must be an array with a single `Modality.AUDIO` element
+                    tools: [{ functionDeclarations: [addOutfitItemDecl, removeOutfitItemDecl, replaceOutfitItemDecl, clearOutfitDecl] }],
+                    speechConfig: {
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } }
+                    }
                 }
-            },
-            config: {
-                systemInstruction: SYSTEM_INSTRUCTION,
-                responseModalities: [Modality.AUDIO], // Must be an array with a single `Modality.AUDIO` element
-                tools: [{ functionDeclarations: [addOutfitItemDecl, removeOutfitItemDecl, replaceOutfitItemDecl, clearOutfitDecl] }],
-                speechConfig: {
-                    voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } }
-                }
-            }
-        });
+            });
 
-        this.session = sessionPromise;
+            this.session = sessionPromise;
+        } catch (error) {
+            console.error("Connection failed:", error);
+            this.isConnecting = false;
+            this.isConnected = false;
+            this.onStatusChange('idle');
+        }
     }
 
     private monitorVolume() {
+        if (!this.isConnected && !this.isConnecting) return; // Stop loop if disconnected
+
         const checkVolume = () => {
+            if (!this.isConnected) return; // Double check
+
             let volume = 0;
             const dataArray = new Uint8Array(128); // fftSize/2
 
@@ -275,7 +312,13 @@ export class GeminiLiveService {
         if (this.animationFrameId) {
             cancelAnimationFrame(this.animationFrameId);
         }
-        // ... rest of disconnect
+
+        // Stop the microphone stream
+        if (this.audioStream) {
+            this.audioStream.getTracks().forEach(track => track.stop());
+            this.audioStream = null;
+        }
+
         // Close the session to prevent 1006 errors on reconnect
         if (this.session) {
             try {
@@ -285,6 +328,9 @@ export class GeminiLiveService {
                 console.error("Error closing session:", e);
             }
         }
+        this.session = null;
+        this.isConnected = false;
+        this.isConnecting = false;
 
         // Clean up audio contexts
         if (this.inputAudioContext) {
@@ -295,6 +341,9 @@ export class GeminiLiveService {
             try { await this.outputAudioContext.close(); } catch (e) { }
             this.outputAudioContext = null;
         }
+
+        this.inputAnalyser = null;
+        this.outputAnalyser = null;
     }
 
     setMute(muted: boolean) {
