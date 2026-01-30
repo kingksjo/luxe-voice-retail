@@ -6,6 +6,7 @@ export interface Product {
     name: string;
     color: string;
     material: string;
+    style_tags: string[];
     price: number;
     image_url: string;
 }
@@ -14,7 +15,7 @@ export interface OutfitItem extends Product {
     addedAt: number; // Timestamp for animation sorting
 }
 
-export type AgentState = 'idle' | 'listening' | 'speaking' | 'processing';
+export type AgentState = 'idle' | 'listening' | 'speaking' | 'processing' | 'muted';
 
 export interface ToolCallArgs {
     addOutfitItem?: { productId: string };

@@ -12,8 +12,16 @@ interface AgentViewProps {
 export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
     const [outfit, setOutfit] = useState<OutfitItem[]>([]);
     const [agentState, setAgentState] = useState<AgentState>('listening');
+    const [volume, setVolume] = useState(0);
     const serviceRef = useRef<GeminiLiveService | null>(null);
     const scrollEndRef = useRef<HTMLDivElement>(null);
+
+    const toggleMute = () => {
+        if (serviceRef.current) {
+            const newState = agentState === 'muted' ? 'listening' : 'muted';
+            serviceRef.current.setMute(newState === 'muted');
+        }
+    };
 
     // Scroll to bottom when outfit changes
     useEffect(() => {
@@ -39,7 +47,7 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
             } else if (name === 'replaceOutfitItem') {
                 const newProduct = PRODUCT_CATALOG.find(p => p.id === toolArgs.newProductId);
                 if (newProduct) {
-                    setOutfit(prev => prev.map(p => 
+                    setOutfit(prev => prev.map(p =>
                         p.id === toolArgs.oldProductId ? { ...newProduct, addedAt: Date.now() } : p
                     ));
                 }
@@ -48,9 +56,9 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
             }
         };
 
-        const service = new GeminiLiveService(handleToolCall, setAgentState);
+        const service = new GeminiLiveService(handleToolCall, setAgentState, setVolume);
         serviceRef.current = service;
-        
+
         service.connect().catch(err => {
             console.error("Failed to connect", err);
             // Optionally handle error UI
@@ -64,7 +72,7 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
     const totalPrice = outfit.reduce((sum, item) => sum + item.price, 0);
 
     return (
-        <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl transition-all duration-500 animate-fade-in">
+        <div className="fixed inset-0 z-50 flex flex-col bg-background/95 backdrop-blur-xl transition-all duration-500 animate-slide-up">
             {/* Header */}
             <div className="flex items-center justify-between p-6 pt-12 border-b border-stone-200/50">
                 <h2 className="text-xs font-bold tracking-[0.2em] uppercase text-dark/80">Current Selection</h2>
@@ -82,15 +90,15 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
                         <p className="text-xs uppercase tracking-wide mt-2">Speak to start styling</p>
                     </div>
                 )}
-                
+
                 {outfit.map((item) => (
-                    <OutfitCard 
-                        key={`${item.id}-${item.addedAt}`} 
-                        item={item} 
-                        onRemove={() => setOutfit(prev => prev.filter(p => p.id !== item.id))} 
+                    <OutfitCard
+                        key={`${item.id}-${item.addedAt}`}
+                        item={item}
+                        onRemove={() => setOutfit(prev => prev.filter(p => p.id !== item.id))}
                     />
                 ))}
-                
+
                 {outfit.length > 0 && (
                     <div className="mt-8 pt-6 border-t border-dashed border-stone-300">
                         <div className="flex justify-between items-end">
@@ -103,7 +111,8 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
             </div>
 
             {/* Agent Pill (Sticky within Overlay) */}
-            <AgentPill state={agentState} onClick={() => {}} />
+            <AgentPill state={agentState} onClick={() => { }} volume={volume} onToggleMute={toggleMute} />
         </div>
     );
 };
+
