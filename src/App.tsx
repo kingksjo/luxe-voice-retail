@@ -14,14 +14,14 @@ const App: React.FC = () => {
     return (
         <div className="min-h-screen bg-background text-dark font-sans relative">
             <Header />
-            
+
             <main className="pb-32">
                 {/* Hero Section */}
                 <div className="px-4 py-6">
                     <div className="relative w-full aspect-[3/4] rounded-lg overflow-hidden group shadow-sm">
-                        <img 
-                            src="https://images.unsplash.com/photo-1550614000-4b9519e02a29?q=80&w=2062&auto=format&fit=crop"
-                            alt="Hero"
+                        <img
+                            src="/assets/products/meta-rayban-tt.jpg"
+                            alt="Meta Ray-Ban Smart Glasses"
                             className="absolute inset-0 h-full w-full object-cover transition-transform duration-1000 group-hover:scale-105"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent"></div>

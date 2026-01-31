@@ -12,11 +12,20 @@
     --font-sans: 'Manrope', sans-serif;
     --font-serif: 'Playfair Display', serif;
 
-    /* Custom Animations */
-    --animate-fade-in: fadeIn 0.5s ease-out forwards;
+    /* Custom Animations - Premium, slow, elegant */
+    --animate-fade-in: fadeIn 0.8s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
     --animate-slide-up: slideUp 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
     --animate-pulse-slow: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
     --animate-waveform: waveform 1s ease-in-out infinite;
+    --animate-gradient-flow: gradientFlow 3s ease-in-out infinite;
+    --animate-shimmer: shimmer 2.5s ease-in-out infinite;
+    --animate-pulse-glow: pulseGlow 1.5s ease-in-out infinite;
+
+    /* Premium card animations */
+    --animate-view-enter: viewEnter 0.5s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+    --animate-card-enter: cardEnter 0.8s cubic-bezier(0.22, 1, 0.36, 1) both;
+    --animate-card-image: cardImage 1.2s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+    --animate-status-enter: statusEnter 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
 
 @keyframes fadeIn {
@@ -48,6 +57,91 @@
 
     50% {
         height: 100%;
+    }
+}
+
+@keyframes gradientFlow {
+
+    0%,
+    100% {
+        opacity: 0.4;
+        transform: translateX(-10%);
+    }
+
+    50% {
+        opacity: 0.8;
+        transform: translateX(10%);
+    }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: 200% 0;
+    }
+
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+@keyframes pulseGlow {
+
+    0%,
+    100% {
+        opacity: 0.3;
+    }
+
+    50% {
+        opacity: 0.8;
+    }
+}
+
+/* Premium View & Card Animations */
+@keyframes viewEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cardEnter {
+    0% {
+        opacity: 0;
+        transform: translateY(40px) scale(0.96);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+@keyframes cardImage {
+    0% {
+        transform: scale(1.08);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+@keyframes statusEnter {
+    0% {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+
+    100% {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
     }
 }
 
