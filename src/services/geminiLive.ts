@@ -1,4 +1,4 @@
-import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type } from '@google/genai';
+import { GoogleGenAI, LiveServerMessage, Modality, FunctionDeclaration, Type, Behavior, FunctionResponseScheduling } from '@google/genai';
 import { decode, encode, decodeAudioData } from './audio';
 import { PRODUCT_CATALOG, SYSTEM_INSTRUCTION } from '../constants';
 
@@ -6,6 +6,7 @@ import { PRODUCT_CATALOG, SYSTEM_INSTRUCTION } from '../constants';
 const addOutfitItemDecl: FunctionDeclaration = {
     name: 'addOutfitItem',
     description: 'Add an item to the outfit.',
+    behavior: Behavior.NON_BLOCKING,
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -25,6 +26,7 @@ const addOutfitItemDecl: FunctionDeclaration = {
 const removeOutfitItemDecl: FunctionDeclaration = {
     name: 'removeOutfitItem',
     description: 'Remove an item from the outfit.',
+    behavior: Behavior.NON_BLOCKING,
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -40,6 +42,7 @@ const removeOutfitItemDecl: FunctionDeclaration = {
 const replaceOutfitItemDecl: FunctionDeclaration = {
     name: 'replaceOutfitItem',
     description: 'Replace an item in the outfit with a new one.',
+    behavior: Behavior.NON_BLOCKING,
     parameters: {
         type: Type.OBJECT,
         properties: {
@@ -53,6 +56,7 @@ const replaceOutfitItemDecl: FunctionDeclaration = {
 const clearOutfitDecl: FunctionDeclaration = {
     name: 'clearOutfit',
     description: 'Clear all items from the outfit.',
+    behavior: Behavior.NON_BLOCKING,
     parameters: {
         type: Type.OBJECT,
         properties: {},
@@ -124,6 +128,7 @@ export class GeminiLiveService {
                 model: 'gemini-2.5-flash-native-audio-preview-12-2025',
                 callbacks: {
                     onopen: () => {
+                        console.log("[Agent] Session connected");
                         this.isConnected = true;
                         this.isConnecting = false;
                         this.onStatusChange(this.isMuted ? 'muted' : 'listening');
@@ -157,6 +162,7 @@ export class GeminiLiveService {
                             const base64Data = encode(new Uint8Array(int16.buffer));
 
                             sessionPromise.then(session => {
+                                // console.log("Sending audio chunk size:", base64Data.length); // Too noisy for normal logs
                                 session.sendRealtimeInput({
                                     media: {
                                         mimeType: 'audio/pcm;rate=16000',
@@ -172,7 +178,8 @@ export class GeminiLiveService {
                         scriptProcessor.connect(this.inputAudioContext.destination);
                     },
                     onmessage: async (msg: LiveServerMessage) => {
-                        console.log("[Agent] Message received:", msg.toolCall ? 'ToolCall' : msg.serverContent?.interrupted ? 'Interrupted' : msg.serverContent?.modelTurn ? 'Audio' : 'Other');
+                        const type = msg.toolCall ? 'ToolCall' : msg.serverContent?.interrupted ? 'Interrupted' : msg.serverContent?.modelTurn ? 'Audio' : 'Other';
+                        console.log("[Agent] Message received:", type, type === 'Other' ? JSON.stringify(msg, null, 2) : '');
                         // 1. Handle Interruption
                         if (msg.serverContent?.interrupted) {
                             this.onStatusChange(this.isMuted ? 'muted' : 'listening');
@@ -188,11 +195,22 @@ export class GeminiLiveService {
                         if (msg.toolCall) {
                             for (const fc of msg.toolCall.functionCalls) {
                                 console.log("Tool call received:", fc.name, fc.args);
-                                let result = "success";
+                                let result: any = { status: "success" };
                                 try {
-                                    await this.onToolCall(fc.name, fc.args);
+                                    const toolResult = await this.onToolCall(fc.name, fc.args);
+                                    // Provide rich context back to the model
+                                    result = {
+                                        status: "success",
+                                        action: fc.name,
+                                        details: toolResult || `${fc.name} executed successfully`,
+                                        reminder: "Continue using tools for any outfit changes."
+                                    };
                                 } catch (error) {
-                                    result = "error";
+                                    result = {
+                                        status: "error",
+                                        action: fc.name,
+                                        error: String(error)
+                                    };
                                     console.error(error);
                                 }
                                 sessionPromise.then(session => {
@@ -200,7 +218,10 @@ export class GeminiLiveService {
                                         functionResponses: [{
                                             id: fc.id,
                                             name: fc.name,
-                                            response: { result: { status: result } }
+                                            response: {
+                                                result: result,
+                                                scheduling: FunctionResponseScheduling.SILENT
+                                            }
                                         }]
                                     });
                                 }).catch(e => {
@@ -264,7 +285,7 @@ export class GeminiLiveService {
                     responseModalities: [Modality.AUDIO], // Must be an array with a single `Modality.AUDIO` element
                     tools: [{ functionDeclarations: [addOutfitItemDecl, removeOutfitItemDecl, replaceOutfitItemDecl, clearOutfitDecl] }],
                     speechConfig: {
-                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Fenrir' } }
+                        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Kore' } }
                     }
                 }
             });

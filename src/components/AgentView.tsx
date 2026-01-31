@@ -40,7 +40,7 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
 
     // Initialize Service
     useEffect(() => {
-        const handleToolCall = async (name: string, args: any) => {
+        const handleToolCall = async (name: string, args: any): Promise<string> => {
             const toolArgs = args as any;
             console.log('Executing Tool:', name, toolArgs);
 
@@ -51,19 +51,26 @@ export const AgentView: React.FC<AgentViewProps> = ({ onClose }) => {
                         if (prev.find(p => p.id === product.id)) return prev;
                         return [...prev, { ...product, addedAt: Date.now() }];
                     });
+                    return `Added ${product.name} (${product.category}) to outfit`;
                 }
+                return `Product ${toolArgs.productId} not found in catalog`;
             } else if (name === 'removeOutfitItem') {
                 setOutfit(prev => prev.filter(p => p.category !== toolArgs.category));
+                return `Removed ${toolArgs.category} from outfit`;
             } else if (name === 'replaceOutfitItem') {
                 const newProduct = PRODUCT_CATALOG.find(p => p.id === toolArgs.newProductId);
                 if (newProduct) {
                     setOutfit(prev => prev.map(p =>
                         p.id === toolArgs.oldProductId ? { ...newProduct, addedAt: Date.now() } : p
                     ));
+                    return `Replaced item with ${newProduct.name}`;
                 }
+                return `New product ${toolArgs.newProductId} not found`;
             } else if (name === 'clearOutfit') {
                 setOutfit([]);
+                return `Outfit cleared. Ready for new selections.`;
             }
+            return `Unknown tool: ${name}`;
         };
 
         const service = new GeminiLiveService(handleToolCall, setAgentState, setVolume);
